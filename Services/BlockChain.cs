@@ -90,8 +90,12 @@ namespace Blockchain.Services
             //Отримання останнього блоку
             var lastBlock = Chain.Last();
 
-            //Вибір транзакцій для нового блоку
-            var transactionToInclude = _pendingTransactions.Take(max).ToList();
+            //Вибір транзакцій з найбільшою комісією
+            var transactionToInclude =
+                _pendingTransactions
+                    .OrderByDescending(t => t.Fee)
+                    .Take(max)
+                    .ToList();
 
             //загальна сума комісії з транзакцій
             var totalFees = transactionToInclude.Sum(t => t.Fee);

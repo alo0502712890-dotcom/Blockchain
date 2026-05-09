@@ -11,6 +11,7 @@ public class Program
 
         //RunSecurityAudit();
         //TestFee();
+        TestTransactionPriority();
 
         int port = 5000;
         if (args.Length > 0)
@@ -212,5 +213,45 @@ public class Program
         Console.WriteLine("Баланс Bob: " + blockChain.GetBalance(bobWallet.Address));
         Console.WriteLine("Баланс Miner: " + blockChain.GetBalance(minerWallet.Address));
 
+    }
+
+    public static void TestTransactionPriority()
+    {
+
+        //Сервіси
+        var walletService = new WalletService();
+        var blockChain = new BlockChain(1);
+        var transactionService = new TransactionService(walletService);
+        var displayService = new BlockChainDisplayService();
+
+        //Гаманці
+        var aliceWallet = walletService.CreateWallet("Alice");
+
+        var bobWallet = walletService.CreateWallet("Bob");
+
+        var minerWallet = walletService.CreateWallet("Miner");
+
+        //Даємо Alice баланс через майнінг
+        blockChain.MinePendingTransactions( aliceWallet, 5);
+        blockChain.MinePendingTransactions( aliceWallet, 5);
+
+        Console.WriteLine( "Alice balance: " + blockChain.GetBalance(aliceWallet.Address));
+
+        //Транзакції з різними fee
+        var tx1 = transactionService.CreateTransaction( aliceWallet, bobWallet.Address, 5, 0.1m);
+
+        var tx2 = transactionService.CreateTransaction( aliceWallet, bobWallet.Address, 5, 2.0m);
+
+        var tx3 = transactionService.CreateTransaction( aliceWallet, bobWallet.Address, 5, 1.5m);
+
+        //Додаємо в mempool
+        blockChain.AddTransaction(tx1);
+        blockChain.AddTransaction(tx2);
+        blockChain.AddTransaction(tx3);
+
+        //Майнимо тільки 2 транзакції
+        blockChain.MinePendingTransactions( minerWallet, 2);
+
+        displayService.PrintBlockChain( blockChain.Chain);
     }
 }
