@@ -1,9 +1,10 @@
-﻿using Blockchain.Models;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
+using Blockchain.Models;
 
 namespace Blockchain.Services
 {
@@ -20,6 +21,13 @@ namespace Blockchain.Services
 
         //інтервал для коригування складності
         private readonly int _adjustmentInterval = 5;
+
+
+        //шлях до файлу для зберігання даних блокчейну
+        private readonly string _storageFilePath = "blockchain_date.dat";
+        //баланс користувачів
+        public Dictionary<string, decimal> Balances { get; set; } = new Dictionary<string, decimal>();
+
 
         //сервіс для обчислення хешу блоків
         private readonly HashingService _hashingService;
@@ -43,7 +51,13 @@ namespace Blockchain.Services
             _hashingService = new HashingService();
             _miningService = new MiningService(_hashingService);
             this.Difficulty = difficulty;
-            CreateGenesisBlock();
+            
+            this.LoadChainFromFile();
+            if (Chain.Count == 0)
+            {
+                //створюєм генезисблок якщо блокчейн пустий
+                CreateGenesisBlock();
+            }
         }
 
         //Створення genesis-блоку (першого блоку в мережі)
@@ -58,6 +72,11 @@ namespace Blockchain.Services
             _miningService.MineBlock(genesisBlock, Difficulty);
 
             Chain.Add(genesisBlock);
+
+            //підраховуєм баланс
+            this.ApplyBlockToState(genesisBlock);
+            //зберігаємо блокчейн у файл
+            this.AppendBlockToFile(genesisBlock);
         }
 
 
@@ -72,9 +91,41 @@ namespace Blockchain.Services
             //чи достатньо коштів у відправника
             if (transaction.From != "COINBASE")
             {
-                decimal senderSalanse = GetBalance(transaction.From);
-                if (senderSalanse < transaction.Amount + transaction.Fee)
+                //
+                //decimal senderSalanse = GetBalance(transaction.From);
+                //if (senderSalanse < transaction.Amount + transaction.Fee)
+                //    return false;
+                ////////////////////////////////////////
+                
+
+                decimal senderBalance = 0;
+
+                // Якщо адреса є в словнику балансів — отримуємо її баланс
+                if (Balances.ContainsKey(transaction.From))
+                {
+                    senderBalance = Balances[transaction.From];
+                }
+
+                decimal pendingAmount = 0;
+
+                foreach (var tx in _pendingTransactions)
+                {
+                    // Шукаємо транзакції цього відправника
+                    if (tx.From == transaction.From)
+                    {
+                        pendingAmount += tx.Amount + tx.Fee;
+                    }
+                }
+
+                // Доступний баланс
+                decimal availableBalance = senderBalance - pendingAmount;
+
+                // Перевірка коштів
+                if (availableBalance < transaction.Amount + transaction.Fee)
+                {
                     return false;
+                }
+
             }
 
 
@@ -118,6 +169,12 @@ namespace Blockchain.Services
             block.Transactions.Add(minerRewardTx);
             _miningService.MineBlock(block, Difficulty);
             Chain.Add(block);
+
+            //підраховуєм баланс
+            this.ApplyBlockToState(block);
+
+            //зберігаємо новий блок у файл
+            this.AppendBlockToFile(block);
 
             //Видалення підтверджених транзакцій
             _pendingTransactions.RemoveAll(t => transactionToInclude.Contains(t));
@@ -195,48 +252,191 @@ namespace Blockchain.Services
 
         public decimal GetBalance(string address)
         {
-            decimal balance = 0;
+            //decimal balance = 0;
 
-            // Підраховуємо баланс для вказаної адреси
-            foreach (var block in Chain)
+            //// Підраховуємо баланс для вказаної адреси
+            //foreach (var block in Chain)
+            //{
+            //    // оновлюємо баланс для вказаної адреси
+            //    foreach (var transaction in block.Transactions)
+            //    {
+            //        if (transaction.To == address)
+            //        {
+            //            // Додаємо суму транзакції до балансу, якщо адреса є отримувачем
+            //            balance += transaction.Amount;
+            //        }
+
+            //        if (transaction.From == address)
+            //        {
+            //            // Віднімаємо суму транзакції та комісію від балансу, якщо адреса є відправником
+            //            balance -= transaction.Amount + transaction.Fee;
+            //        }
+            //    }
+            //}
+
+            //// Також враховуємо незавершені транзакції, які ще не включені в блоки,
+            //// але можуть впливати на баланс
+            //foreach (var transaction in _pendingTransactions)
+            //{
+            //    if (transaction.To == address)
+            //    {
+            //        // Додаємо суму транзакції до балансу, якщо адреса є отримувачем
+            //        balance += transaction.Amount;
+            //    }
+
+            //    if (transaction.From == address)
+            //    {
+            //        // Віднімаємо суму транзакції та комісію від балансу, якщо адреса є відправником
+            //        balance -= transaction.Amount + transaction.Fee;
+            //    }
+            //}
+
+            //return balance;
+            ////////////////////////////////////////////////////////////
+            
+            // Отримуємо поточний баланс для адреси
+            // (або 0, якщо адреса ще не має запису в балансах)
+            var balance = Balances.ContainsKey(address) ? Balances[address] : 0;
+
+            // Проходимо по всіх транзакціях в блоках та враховуємо їх вплив на баланс
+            foreach (var tx in _pendingTransactions)
             {
-                // оновлюємо баланс для вказаної адреси
-                foreach (var transaction in block.Transactions)
+                // Якщо адреса є відправником, віднімаємо суму транзакції та комісію
+                if (tx.From == address)
                 {
-                    if (transaction.To == address)
-                    {
-                        // Додаємо суму транзакції до балансу, якщо адреса є отримувачем
-                        balance += transaction.Amount;
-                    }
-
-                    if (transaction.From == address)
-                    {
-                        // Віднімаємо суму транзакції та комісію від балансу, якщо адреса є відправником
-                        balance -= transaction.Amount + transaction.Fee;
-                    }
-                }
-            }
-
-            // Також враховуємо незавершені транзакції, які ще не включені в блоки,
-            // але можуть впливати на баланс
-            foreach (var transaction in _pendingTransactions)
-            {
-                if (transaction.To == address)
-                {
-                    // Додаємо суму транзакції до балансу, якщо адреса є отримувачем
-                    balance += transaction.Amount;
+                    balance -= tx.Amount + tx.Fee;
                 }
 
-                if (transaction.From == address)
+                // Якщо адреса є отримувачем, додаємо суму транзакції
+                if (tx.To == address)
                 {
-                    // Віднімаємо суму транзакції та комісію від балансу, якщо адреса є відправником
-                    balance -= transaction.Amount + transaction.Fee;
+                    balance += tx.Amount;
                 }
             }
 
             return balance;
         }
 
+        // застосування змін до стану блокчейну після додавання нового блоку
+        private void ApplyBlockToState(Block block)
+        {
+            // Проходимо по всіх транзакціях в блоці та оновлюємо баланс для кожної адреси
+            foreach (var transaction in block.Transactions)
+            {
+                // Враховуємо транзакції, які не є винагородою майнера
+                if (transaction.From != "COINBASE")
+                {
+                    // Віднімаємо суму транзакції та комісію від балансу відправника
+                    if (Balances.ContainsKey(transaction.From))
+                    {
+                        Balances[transaction.From] -= transaction.Amount + transaction.Fee;
+                    }
+                    else
+                    {
+                        // Якщо відправник ще не має запису в балансах,
+                        // створюємо його з негативним балансом
+                        Balances[transaction.From] = -transaction.Amount - transaction.Fee;
+                    }
+                }
 
+                // Додаємо суму транзакції до балансу отримувача
+                if (Balances.ContainsKey(transaction.To))
+                {
+                    // Якщо отримувач вже має запис в балансах,
+                    // додаємо суму транзакції до його балансу
+                    Balances[transaction.To] += transaction.Amount;
+                }
+                else
+                {
+                    // Якщо отримувач ще не має запису в балансах,
+                    // створюємо його з сумою транзакції
+                    Balances[transaction.To] = transaction.Amount;
+                }
+            }
+        }
+
+        //для збереження блокчейну в файл
+        public void AppendBlockToFile(Block block)
+        {
+            string jsonLine = JsonSerializer.Serialize(block);
+
+            // Додаємо серіалізований блок у файл (по одному блоку на рядок)
+            File.AppendAllLines( _storageFilePath, new[] { jsonLine });
+        }
+
+
+        //завантаження блокчейну з файла
+        public void LoadChainFromFile()
+        {
+            // Якщо файл не існує — нічого не завантажуємо
+            if (!File.Exists(_storageFilePath))
+                return;
+
+            // Читаємо всі рядки з файлу
+            var lines = File.ReadAllLines(_storageFilePath);
+
+            Chain.Clear();
+            Balances.Clear();
+            Block? previousBlock = null;
+
+            foreach (var line in lines)
+            {
+                // Десеріалізуємо рядок в об’єкт Block
+                var block = JsonSerializer.Deserialize<Block>(line);
+
+                // Якщо блок успішно створений —додаємо його до блокчейну
+                //if (block != null)
+                //{
+                //    Chain.Add(block);
+                //    //Відновлення кешу балансів
+                //    ApplyBlockToState(block);
+                //}
+                /////////////////////////////////
+                
+                if (block == null) continue;
+
+                // Перевірка hash
+                string computedHash = _hashingService.ComputeHash(block);
+
+                // Якщо hash не співпадає — файл було змінено вручну
+                if (computedHash != block.Hash)
+                {
+                    Console.ForegroundColor = ConsoleColor.Red;
+                    Console.WriteLine( "КРИТИЧНА ПОМИЛКА: Файл blocks.dat скомпрометовано!");
+                    Console.ResetColor();
+
+                    Chain.Clear();
+                    Balances.Clear();
+                    return;
+                }
+
+                // Перевіряємо всі блоки, крім genesis block
+                if (previousBlock != null)
+                {
+                    if (block.PrevHash != previousBlock.Hash)
+                    {
+                        Console.ForegroundColor = ConsoleColor.Red;
+                        Console.WriteLine( "КРИТИЧНА ПОМИЛКА: Файл blocks.dat скомпрометовано!");
+                        Console.ResetColor();
+
+                        Chain.Clear();
+                        Balances.Clear();
+                        return;
+                    }
+                }
+                // Додаємо блок у blockchain
+                Chain.Add(block);
+
+                ApplyBlockToState(block);
+
+                previousBlock = block;
+            }
+        }
+
+
+        public int GetPendingCount()
+        {
+            return _pendingTransactions.Count;
+        }
     }
 }
