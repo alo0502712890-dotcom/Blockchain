@@ -1,6 +1,7 @@
-﻿using Blockchain.Models;
+﻿using System.Text;
+using System.Xml.Linq;
+using Blockchain.Models;
 using Blockchain.Services;
-using System.Text;
 
 public class Program
 {
@@ -9,7 +10,9 @@ public class Program
         Console.OutputEncoding = Encoding.UTF8;
         Console.InputEncoding = Encoding.UTF8;
 
-        TestRestoreBlockchain();
+        TestConsensusSecurity();
+        //TestConsensus();
+        //TestRestoreBlockchain();
         //TestFee();
         //RunSecurityAudit();
         //TestTransactionPriority();
@@ -106,7 +109,7 @@ public class Program
         //            break;
 
         //        case "5":
-        //            bool isValid = blockChain.isValid();
+        //            bool isValid = blockChain.isValid(blockChain.Chain);
         //            Console.WriteLine(isValid ? "Блокчейн валідний" : "Блокчейн невалідний!");
         //            break;
 
@@ -192,29 +195,29 @@ public class Program
         Console.WriteLine("Сценарій 2: Фейковий блок");
 
         var lastBlock = blockChain.Chain.Last();
-        var fakeBlock = new Block( lastBlock.Index + 1, new List<Transaction>(), lastBlock.Hash, 1);
+        var fakeBlock = new Block(lastBlock.Index + 1, new List<Transaction>(), lastBlock.Hash, 1);
 
         fakeBlock.Hash = "FAKE_HASH_123";
         blockChain.Chain.Add(fakeBlock);
-        bool isValid = blockChain.isValid();
-        Console.WriteLine( isValid ? "блок прийнятий" : "блок відхилений");
+        //bool isValid = blockChain.isValid();
+        //Console.WriteLine(isValid ? "блок прийнятий" : "блок відхилений");
 
         //3
         Console.WriteLine("Сценарій 3: Легальна операція");
 
         blockChain = new BlockChain(1);
         var minerWallet = walletService.CreateWallet("Miner");
-        blockChain.MinePendingTransactions( minerWallet, 5);
+        blockChain.MinePendingTransactions(minerWallet, 5);
 
         Console.WriteLine("Баланс після майнінгу: " + blockChain.GetBalance(minerWallet.Address));
 
-        var legalTransaction = transactionService.CreateTransaction( minerWallet, bobWallet.Address, 20, 0.1m);
+        var legalTransaction = transactionService.CreateTransaction(minerWallet, bobWallet.Address, 20, 0.1m);
         bool tResult = blockChain.AddTransaction(legalTransaction);
 
         Console.WriteLine(tResult ? "транзакція пройшла" : "транзакція відхилена");
 
 
-        blockChain.MinePendingTransactions( minerWallet, 5);
+        blockChain.MinePendingTransactions(minerWallet, 5);
 
         Console.WriteLine("Баланс Bob: " + blockChain.GetBalance(bobWallet.Address));
         Console.WriteLine("Баланс Miner: " + blockChain.GetBalance(minerWallet.Address));
@@ -238,17 +241,17 @@ public class Program
         var minerWallet = walletService.CreateWallet("Miner");
 
         //Даємо Alice баланс через майнінг
-        blockChain.MinePendingTransactions( aliceWallet, 5);
-        blockChain.MinePendingTransactions( aliceWallet, 5);
+        blockChain.MinePendingTransactions(aliceWallet, 5);
+        blockChain.MinePendingTransactions(aliceWallet, 5);
 
-        Console.WriteLine( "Alice balance: " + blockChain.GetBalance(aliceWallet.Address));
+        Console.WriteLine("Alice balance: " + blockChain.GetBalance(aliceWallet.Address));
 
         //Транзакції з різними fee
-        var tx1 = transactionService.CreateTransaction( aliceWallet, bobWallet.Address, 5, 0.1m);
+        var tx1 = transactionService.CreateTransaction(aliceWallet, bobWallet.Address, 5, 0.1m);
 
-        var tx2 = transactionService.CreateTransaction( aliceWallet, bobWallet.Address, 5, 2.0m);
+        var tx2 = transactionService.CreateTransaction(aliceWallet, bobWallet.Address, 5, 2.0m);
 
-        var tx3 = transactionService.CreateTransaction( aliceWallet, bobWallet.Address, 5, 1.5m);
+        var tx3 = transactionService.CreateTransaction(aliceWallet, bobWallet.Address, 5, 1.5m);
 
         //Додаємо в mempool
         blockChain.AddTransaction(tx1);
@@ -256,9 +259,9 @@ public class Program
         blockChain.AddTransaction(tx3);
 
         //Майнимо тільки 2 транзакції
-        blockChain.MinePendingTransactions( minerWallet, 2);
+        blockChain.MinePendingTransactions(minerWallet, 2);
 
-        displayService.PrintBlockChain( blockChain.Chain);
+        displayService.PrintBlockChain(blockChain.Chain);
     }
 
     public static void TestRestoreBlockchain()
@@ -276,32 +279,26 @@ public class Program
         var aliceWallet = walletService.CreateWallet("Alice");
 
         // Майнінг 3 блоків
-        blockChain.MinePendingTransactions( minerWallet, 5);
-        blockChain.MinePendingTransactions( minerWallet, 5);
-        blockChain.MinePendingTransactions( minerWallet, 5);
+        blockChain.MinePendingTransactions(minerWallet, 5);
+        blockChain.MinePendingTransactions(minerWallet, 5);
+        blockChain.MinePendingTransactions(minerWallet, 5);
 
-        Console.WriteLine( "Miner balance after mining: " +
+        Console.WriteLine("Miner balance after mining: " +
             blockChain.GetBalance(minerWallet.Address));
 
         // Транзакція Miner -> Alice
-        var tx = transactionService.CreateTransaction( minerWallet, aliceWallet.Address, 20, 1.0m);
+        var tx = transactionService.CreateTransaction(minerWallet, aliceWallet.Address, 20, 1.0m);
         blockChain.AddTransaction(tx);
 
         // Майнінг блоку з транзакцією
-        blockChain.MinePendingTransactions( minerWallet, 5);
+        blockChain.MinePendingTransactions(minerWallet, 5);
 
-        Console.WriteLine( "Alice balance before restart: " +
+        Console.WriteLine("Alice balance before restart: " +
             blockChain.GetBalance(aliceWallet.Address));
 
         Console.WriteLine("RESTART");
         var restoredChain = new BlockChain(1);
-        if (restoredChain.Chain.Count == 0)
-        {
-            Console.WriteLine(
-                "Blockchain loading failed!");
 
-            return;
-        }
 
 
         // Перевірка 1 (Цілісність файлу): Вивести кількість рядків у файлі blocks.dat
@@ -317,7 +314,7 @@ public class Program
         //Вивести баланс Аліси, звертаючись безпосередньо до словника State,
         // Очікується: 20
 
-        Console.WriteLine( "Alice balance from State: " +
+        Console.WriteLine("Alice balance from State: " +
             restoredChain.Balances[aliceWallet.Address]);
 
 
@@ -326,6 +323,156 @@ public class Program
         Console.WriteLine("Pending transactions count: " +
             restoredChain.GetPendingCount());
 
+
+    }
+
+    public static void TestConsensus()
+    {
+        var walletService = new WalletService();
+
+        var node1 = new BlockChain(1);
+        var node2 = new BlockChain(2);
+
+        var satoshi = walletService.CreateWallet("Satoshi");
+        var vitalic = walletService.CreateWallet("Vitalic");
+
+        node1.MinePendingTransactions(satoshi, 5);
+        node1.MinePendingTransactions(satoshi, 5);
+        Console.WriteLine("Node1 count" + node1.Chain.Count);
+
+        node2.MinePendingTransactions(vitalic, 5);
+        node2.MinePendingTransactions(vitalic, 5);
+        node2.MinePendingTransactions(vitalic, 5);
+        node2.MinePendingTransactions(vitalic, 5);
+        Console.WriteLine("Node2 count" + node2.Chain.Count);
+
+        node1.ReplaceChain(node2.Chain);
+
+        //1 Вивести поточну кількість блоків у nodeA.Chain.Count. Очікується: 5.
+        Console.WriteLine();
+        Console.WriteLine("Node1 count" + node1.Chain.Count);
+
+        //2 Вивести баланси Satoshi та Vitalik на nodeA,
+        //звертаючись безпосередньо до миттєвого словника
+        decimal satoshiBalanse = 0;
+        if (node1.Balances.ContainsKey(satoshi.Address))
+        {
+            satoshiBalanse = node1.Balances[satoshi.Address];
+        }
+
+        decimal vitalicBalanse = 0;
+        if (node1.Balances.ContainsKey(vitalic.Address))
+        {
+            vitalicBalanse = node1.Balances[vitalic.Address];
+        }
+        Console.WriteLine();
+        Console.WriteLine("Satoshi balanse: " + satoshiBalanse);
+
+        Console.WriteLine();
+        Console.WriteLine("Vitalic Balanse: " + vitalicBalanse);
+
+        //3 Вивести кількість рядків у локальному файлі сховища blocks.dat
+        int count = File.ReadLines("blockchain_date.dat").Count();
+
+        Console.WriteLine();
+        Console.WriteLine("Lines in file: " + count);
+
+
+    }
+
+    public static void TestConsensusSecurity()
+    {
         
+        var walletService = new WalletService();
+
+        // Ноди
+        //наша нода
+        var localNode = new BlockChain(1);
+        //нода зловмисника
+        var hackerNode = new BlockChain(1);
+        //чесна потужна мережа
+        var honestNetwork = new BlockChain(1);
+
+
+        // Гаманці
+        var minerWallet = walletService.CreateWallet("Miner");
+        var hackerWallet = walletService.CreateWallet("Hacker");
+        var poolWallet = walletService.CreateWallet("Pool");
+
+        // Майнимо 2 валідні блоки. Очікується: 3
+        localNode.MinePendingTransactions(minerWallet, 5);
+        localNode.MinePendingTransactions(minerWallet, 5);
+
+        Console.WriteLine("Кількість блоків localNode: " + localNode.Chain.Count);
+
+        // чесний блок
+        hackerNode.MinePendingTransactions(hackerWallet, 5);
+
+        // ФЕЙКОВІ блоки
+        for (int i = 0; i < 5; i++)
+        {
+            var lastBlock = hackerNode.Chain.Last();
+
+            var fakeBlock = new Block(lastBlock.Index + 1, new List<Transaction>(), lastBlock.Hash, 1);
+
+            // ФЕЙКОВИЙ HASH
+            fakeBlock.Hash = "HACKED_HASH";
+
+            hackerNode.Chain.Add(fakeBlock);
+        }
+
+        Console.WriteLine("Кількість блоків hackerNode: " + hackerNode.Chain.Count);
+        // Очікується: 7
+
+
+        // Майнимо 4 валідні блоки
+        honestNetwork.MinePendingTransactions(poolWallet, 5);
+        honestNetwork.MinePendingTransactions(poolWallet, 5); 
+        honestNetwork.MinePendingTransactions(poolWallet, 5); 
+        honestNetwork.MinePendingTransactions(poolWallet, 5);
+
+        Console.WriteLine("Кількість блоків honestNetwork: " + honestNetwork.Chain.Count);
+        // Очікується: 5
+
+
+        // 1
+        Console.WriteLine();
+        Console.WriteLine("CHECK 1");
+
+        bool hackerResult = localNode.ReplaceChain(hackerNode.Chain);
+
+        Console.WriteLine("Чи прийнято chain хакера: " + hackerResult);
+
+        Console.WriteLine("Поточна довжина localNode: " + localNode.Chain.Count);
+
+        // очікується - False, 3
+
+        
+        // 2
+        Console.WriteLine();
+        Console.WriteLine("CHECK 2");
+
+        bool honestResult =localNode.ReplaceChain(honestNetwork.Chain);
+
+        Console.WriteLine("Чи прийнято чесний chain: " + honestResult);
+
+        Console.WriteLine("Нова довжина localNode: " + localNode.Chain.Count);
+
+        // очікується - true, 5
+
+
+        // 3
+        Console.WriteLine();
+        Console.WriteLine("CHECK 3");
+
+        decimal poolBalance = 0;
+
+        if (localNode.Balances.ContainsKey(poolWallet.Address))
+        {
+            poolBalance = localNode.Balances[poolWallet.Address];
+        }
+
+        Console.WriteLine("Баланс Pool після консенсусу: " + poolBalance);
+        // очікується 200
     }
 }

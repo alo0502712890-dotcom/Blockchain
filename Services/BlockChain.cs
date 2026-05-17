@@ -214,13 +214,13 @@ namespace Blockchain.Services
         }
 
         //Перевірка цілісності блокчейну
-        public bool isValid()
+        public bool isValid(List<Block> chain)
         {
-            for (int i = 1; i < Chain.Count; i++)
+            for (int i = 1; i < chain.Count; i++)
             {
-                var currentBlock = Chain[i];
+                var currentBlock = chain[i];
 
-                var prevBlock = Chain[i - 1];
+                var prevBlock = chain[i - 1];
 
                 //Перевірка правильності хешу блоку
                 if (currentBlock.Hash != _hashingService.ComputeHash(currentBlock))
@@ -246,8 +246,6 @@ namespace Blockchain.Services
             }
             return true;
         }
-
-
 
 
         public decimal GetBalance(string address)
@@ -317,6 +315,7 @@ namespace Blockchain.Services
             return balance;
         }
 
+
         // застосування змін до стану блокчейну після додавання нового блоку
         private void ApplyBlockToState(Block block)
         {
@@ -354,6 +353,7 @@ namespace Blockchain.Services
                 }
             }
         }
+
 
         //для збереження блокчейну в файл
         public void AppendBlockToFile(Block block)
@@ -437,6 +437,56 @@ namespace Blockchain.Services
         public int GetPendingCount()
         {
             return _pendingTransactions.Count;
+        }
+
+
+        // Метод консенсусу Накамото:
+        // замінює поточний блокчейн на довший та валідний ланцюг
+        public bool ReplaceChain(List<Block> newChain)
+        {
+            // Новий ланцюг повинен бути довшим
+            if (newChain.Count <= Chain.Count)
+                return false;
+
+            // Перевірка валідності
+            if (!isValid(newChain))
+                return false;
+
+            ////зберігаємо і синхронізуємо транзакцї які ще небули включені в блоки але є в новому ланцюгу
+            //всі з поточного ланцюга
+            var oldTransaction = Chain.SelectMany(b => b.Transactions)
+                .Where(x => x.From != "COINBASE").ToList();
+
+            //всі з нового ланцюга
+            var newTransaction = newChain.SelectMany(b => b.Transactions)
+                .Where(x => x.From != "COINBASE").Select(x=>x.Signature).ToList();
+
+            foreach (var tx in oldTransaction)
+            {
+                if (!newTransaction.Any(sig=>sig.SequenceEqual(tx.Signature)))
+                {
+                    //додаємо транзакці які є в старому ланцюгу , але відсутні в новому до списку очікуваних транзакцій
+                    _pendingTransactions.Add(tx);
+                }
+            }
+            // Замінюємо chain
+            Chain = newChain;
+            Difficulty = newChain.Last().Difficulty;
+
+            // Видаляємо старий файл
+            if (File.Exists(_storageFilePath))
+            {
+                File.Delete(_storageFilePath);
+            }
+            //
+            Balances.Clear();
+            //перезапис файла
+            foreach (var block in Chain)
+            {
+                ApplyBlockToState(block);
+                AppendBlockToFile(block);
+            }
+            return true;
         }
     }
 }

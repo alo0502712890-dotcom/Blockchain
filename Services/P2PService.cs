@@ -61,6 +61,8 @@ namespace Blockchain.Services
             client.Connect(ip, port);
             Console.WriteLine($"Connect to pear {ip}:{port}");
             _pears.Add(client);
+
+            BroadCast(MessageType.RequestCgain, null);
             Task.Run(() => HendleClient(client));
         }
 
@@ -129,6 +131,26 @@ namespace Blockchain.Services
 
                 //Додаємо транзакцію у пул очікування
                 _blockchain.AddTransaction(newTransaction);
+            }
+
+            // Обробка запиту на отримання блокчейну
+            else if (message.Type == MessageType.RequestCgain)
+            {
+                // Відправляємо поточний blockchain іншій ноді
+                BroadCast(MessageType.SendCain, _blockchain.Chain);
+            }
+            // Обробка отриманого блокчейну
+            else if (message.Type == MessageType.SendCain)
+            {
+                // Десеріалізація отриманого chain
+                var receivedChain = JsonSerializer.Deserialize<List<Block>>(message.Data);
+
+                // Якщо chain успішно отриманий — запускаємо механізм консенсусу
+                if (receivedChain!= null)
+                {
+                    // Замінюємо локальний chain,якщо отриманий довший та валідний
+                    _blockchain.ReplaceChain(receivedChain);
+                }
             }
         }
 
