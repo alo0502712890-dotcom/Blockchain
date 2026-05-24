@@ -15,6 +15,9 @@ namespace Blockchain.Models
         public decimal Fee { get; set; }
         public DateTime Timestamp { get; set; } = DateTime.Now;
 
+        //
+        public string Memo { get; set; } = string.Empty;
+
         //підпис приватним ключем
         public byte[] Signature { get; set; }
 
@@ -23,32 +26,35 @@ namespace Blockchain.Models
 
 
         public Transaction() { }
-        public Transaction(string from, string to, decimal amount, decimal fee, byte[] publicKey)
+        public Transaction(string from, string to, decimal amount, decimal fee, byte[] publicKey, string memo = "")
         {
             From = from;
             To = to;
             Amount = amount;
             Fee = fee;
-            Signature = null;
             PublicKey = publicKey;
+            Memo = memo ?? string.Empty;
         }
+
 
         // формує данні для підпису = данні обєднуються та хешуються
         public byte[] GetDataSign()
         {
-            string data = $"{From}:{To}:{Amount}:{Fee}:{Timestamp.ToString("O")}"; 
-            //ToString("O") = однаковий штамп дати для всих регіонів
-
+            string data = $"{From}:{To}:{Amount}:{Fee}:{Timestamp.ToString("O")}:{Memo}";
             return Encoding.UTF8.GetBytes(data);
         }
+
 
         // перетворює транзакцію в рядок, використовується для хешування блоку
         public string ToRawString()
         {
-            string hexSignature = Signature != null ? BitConverter.ToString(Signature).Replace("-", "") : "null";
+            string hexSignature = Signature != null
+                ? BitConverter.ToString(Signature).Replace("-", "")
+                : "null";
 
-            return $"{From}:{To}:{Amount}:{Fee}:{Timestamp.ToString("O")}:{hexSignature}";
-        }  
+            return $"{From}:{To}:{Amount}:{Fee}:{Timestamp.ToString("O")}:{hexSignature}:{Memo}";
+        }
+
 
 
 

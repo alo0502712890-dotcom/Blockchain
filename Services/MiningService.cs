@@ -15,7 +15,7 @@ namespace Blockchain.Services
 
         public MiningService(HashingService hashingService) 
         {
-            _hashingService = new HashingService();
+            _hashingService = hashingService;
         }
 
 
@@ -45,7 +45,7 @@ namespace Blockchain.Services
             block.MiningDuration = stopwatch.Elapsed.TotalSeconds;
 
             //Збереження кількості спроб
-            block.Attemps = block.Nonce;
+            block.Attempts = block.Nonce;
 
             return block.Nonce;
         }

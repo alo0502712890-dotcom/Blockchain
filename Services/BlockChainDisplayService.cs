@@ -22,8 +22,12 @@ namespace Blockchain.Services
             Console.WriteLine($"Nonce: {block.Nonce}");
             Console.WriteLine($"Difficulty: {block.Difficulty}");
             Console.WriteLine($"Mining Duration: {block.MiningDuration}");
-            Console.WriteLine($"Mining Attemps: {block.Attemps}");
-            Console.WriteLine($"Hash rate: {block.Attemps / block.MiningDuration} hashes/seconds");
+            Console.WriteLine($"Mining Attemps: {block.Attempts}");
+            Console.WriteLine(
+                $"Hash rate: " +
+                $"{(block.MiningDuration > 0
+                    ? block.Attempts / block.MiningDuration
+                    : 0)} hashes/seconds");
             Console.WriteLine(new string('-', 40));
             Console.ForegroundColor = ConsoleColor.Gray;
 
@@ -65,10 +69,10 @@ namespace Blockchain.Services
         public void PrintBenchmarkResult(Block block)
         {
             Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.WriteLine($"Mining attemps: {block.Attemps}");
+            Console.WriteLine($"Mining attemps: {block.Attempts}");
             Console.WriteLine($"Time taken: {block.MiningDuration} seconds");
             Console.WriteLine($"Difficulty: {block.Difficulty}");
-            Console.WriteLine($"Hashrate: {block.Attemps / block.MiningDuration} hashes/seconds ");
+            Console.WriteLine($"Hashrate: {block.Attempts / block.MiningDuration} hashes/seconds ");
             Console.WriteLine($"Duration {block.MiningDuration}");
             Console.ForegroundColor = ConsoleColor.Gray;
         }

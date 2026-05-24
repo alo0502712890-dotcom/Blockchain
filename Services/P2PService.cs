@@ -16,7 +16,7 @@ namespace Blockchain.Services
         private readonly BlockChain _blockchain;
 
         //Список підключених пірів
-        private readonly List<TcpClient> _pears = new List<TcpClient>();
+        private readonly List<TcpClient> _peers = new List<TcpClient>();
 
         //Порт сервера за замовчуванням
         public int Port { get; private set; } = 5000;
@@ -46,7 +46,7 @@ namespace Blockchain.Services
                     Console.WriteLine("New peer connected");
 
                     //Додавання піра до списку
-                    _pears.Add(client);
+                    _peers.Add(client);
 
                     //Запуск обробки клієнта
                     Task.Run(() => HendleClient(client));
@@ -60,9 +60,10 @@ namespace Blockchain.Services
             var client = new TcpClient();
             client.Connect(ip, port);
             Console.WriteLine($"Connect to pear {ip}:{port}");
-            _pears.Add(client);
+            _peers.Add(client);
 
-            BroadCast(MessageType.RequestCgain, null);
+
+            BroadCast(MessageType.RequestChain, null);
             Task.Run(() => HendleClient(client));
         }
 
@@ -86,6 +87,8 @@ namespace Blockchain.Services
                         //Десеріалізація повідомлення
                         var message = JsonSerializer.Deserialize<P2PMessage>(json);
 
+                        Console.WriteLine($"Отримано повідомлення: {message.Type}");
+
                         //Обробка повідомлення
                         ProcessMessage(message);
                     }
@@ -93,7 +96,7 @@ namespace Blockchain.Services
                 catch (Exception ex)
                 {
                     //Видалення клієнта при помилці
-                    _pears.Remove(client);
+                    _peers.Remove(client);
                     Console.WriteLine($"Error handling client: {ex.Message}");
                     break;
                 }
@@ -119,8 +122,18 @@ namespace Blockchain.Services
                 //Перевірка хешу чи він співпадає з обчисленим та вимогам складності
                 if (calculatedHash == newBlock.Hash && calculatedHash.StartsWith(targetHash))
                 {
-                    _blockchain.Chain.Add(newBlock);
-                    Console.WriteLine($"New block added: {newBlock.Index}");
+                    var tempChain = new List<Block>(_blockchain.Chain);
+
+                    tempChain.Add(newBlock);
+
+                    if (_blockchain.isValid(tempChain))
+                    {
+                        _blockchain.Chain.Add(newBlock);
+
+                        Console.WriteLine(
+                            $"New block added: {newBlock.Index}");
+                    }
+
                 }
             }
             //Обробка нової транзакції
@@ -134,14 +147,16 @@ namespace Blockchain.Services
             }
 
             // Обробка запиту на отримання блокчейну
-            else if (message.Type == MessageType.RequestCgain)
+            else if (message.Type == MessageType.RequestChain)
             {
+                Console.WriteLine("Отримано RequestChain");
                 // Відправляємо поточний blockchain іншій ноді
-                BroadCast(MessageType.SendCain, _blockchain.Chain);
+                BroadCast(MessageType.SendChain, _blockchain.Chain);
             }
             // Обробка отриманого блокчейну
-            else if (message.Type == MessageType.SendCain)
+            else if (message.Type == MessageType.SendChain)
             {
+                Console.WriteLine( "Отримано SendChain");
                 // Десеріалізація отриманого chain
                 var receivedChain = JsonSerializer.Deserialize<List<Block>>(message.Data);
 
@@ -167,7 +182,7 @@ namespace Blockchain.Services
             string json = JsonSerializer.Serialize(message);
 
             //Відправка всім підключеним пірам
-            foreach (var peer in _pears)
+            foreach (var peer in _peers)
             {
                 try
                 {

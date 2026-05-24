@@ -22,21 +22,18 @@ namespace Blockchain.Services
         }
 
         //метод для створення нової транзакції з підписом
-        public Transaction CreateTransaction(Wallet wallet, string to, decimal amount, decimal fee)
+        public Transaction CreateTransaction(Wallet wallet, string to, decimal amount, decimal fee, string memo)
         {
-            //формуємо обєкт, заповнюємо поля
-            var transaction = new Transaction(wallet.Address, to, amount, fee, wallet.PublicKey);
+            var transaction = new Transaction(wallet.Address, to, amount, fee, wallet.PublicKey, memo);
 
-            //готуємо данні для підпису
             byte[] dataToSign = transaction.GetDataSign();
-            using var ecdsa = System.Security.Cryptography.ECDsa.Create();
 
-            //використовуємо приватний ключ
+            using var ecdsa = System.Security.Cryptography.ECDsa.Create();
             ecdsa.ImportECPrivateKey(wallet.PrivateKey, out _);
 
-            //піписуєм транзакцію
             transaction.Signature = ecdsa.SignData(dataToSign, HashAlgorithmName.SHA256);
             return transaction;
         }
+
     }
 }

@@ -21,9 +21,9 @@ namespace Blockchain.Models
         BroadcastTransaction,
 
         //отримання ланцюга
-        RequestCgain,
+        RequestChain,
 
         //передача ланцюга
-        SendCain,
+        SendChain,
     }
 }
